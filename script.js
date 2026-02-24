@@ -10,9 +10,10 @@ let firstImageData = null;
 let stream = null;
 let processing = false;
 let useFrontCamera = true;
+let aiProcessing = false;
 
 // =========================
-// Setup AI (MediaPipe)
+// Setup MediaPipe AI
 // =========================
 const selfieSegmentation = new SelfieSegmentation({
     locateFile: (file) =>
@@ -23,8 +24,7 @@ selfieSegmentation.setOptions({
     modelSelection: 1
 });
 
-// Register ONCE (important fix)
-selfieSegmentation.onResults(onResults);
+selfieSegmentation.onResults(handleResults);
 
 // =========================
 // Countdown
@@ -51,23 +51,29 @@ function startCountdown(seconds) {
 // Start / Restart Camera
 // =========================
 async function startCamera() {
-
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-    }
-
-    stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-            facingMode: useFrontCamera ? "user" : "environment"
+    try {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
         }
-    });
 
-    video.srcObject = stream;
-    cameraStarted = true;
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: useFrontCamera ? "user" : "environment"
+            },
+            audio: false
+        });
+
+        video.srcObject = stream;
+        cameraStarted = true;
+
+    } catch (error) {
+        alert("Camera access denied or not available.");
+        console.error(error);
+    }
 }
 
 // =========================
-// Switch Camera Button
+// Switch Camera
 // =========================
 if (switchBtn) {
     switchBtn.addEventListener("click", async () => {
@@ -77,13 +83,13 @@ if (switchBtn) {
 }
 
 // =========================
-// Capture Button Logic
+// Capture Logic
 // =========================
 captureBtn.addEventListener("click", async () => {
 
-    if (processing) return;
+    if (processing || aiProcessing) return;
 
-    // 1️⃣ First Click → Start Camera
+    // First Click → Start Camera
     if (!cameraStarted) {
         await startCamera();
         captureBtn.innerText = "Take First Photo";
@@ -91,7 +97,6 @@ captureBtn.addEventListener("click", async () => {
     }
 
     processing = true;
-
     await startCountdown(3);
 
     canvas.width = video.videoWidth;
@@ -99,23 +104,24 @@ captureBtn.addEventListener("click", async () => {
 
     ctx.drawImage(video, 0, 0);
 
-    // 2️⃣ Second Click → Save First Image
+    // Save First Image
     if (!firstImageData) {
         firstImageData = canvas.toDataURL("image/png");
-        alert("First photo taken. Join group and click again.");
         captureBtn.innerText = "Take Second Photo";
+        alert("First photo taken. Join group and click again.");
         processing = false;
         return;
     }
 
-    // 3️⃣ Third Click → Send to AI
+    // Send to AI
+    aiProcessing = true;
     await selfieSegmentation.send({ image: video });
 });
 
 // =========================
 // AI Result Handler
 // =========================
-function onResults(results) {
+function handleResults(results) {
 
     const firstImage = new Image();
     firstImage.src = firstImageData;
@@ -124,10 +130,10 @@ function onResults(results) {
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw first photo
+        // Draw first image
         ctx.drawImage(firstImage, 0, 0);
 
-        // Apply AI mask
+        // Apply AI mask for second person
         ctx.save();
         ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
         ctx.globalCompositeOperation = "source-in";
@@ -143,9 +149,16 @@ function onResults(results) {
 
         alert("Smart AI group photo saved!");
 
-        // Reset for next use
-        firstImageData = null;
-        captureBtn.innerText = "Start Again";
-        processing = false;
+        resetApp();
     };
+}
+
+// =========================
+// Reset Function
+// =========================
+function resetApp() {
+    firstImageData = null;
+    processing = false;
+    aiProcessing = false;
+    captureBtn.innerText = "Start Again";
 }
