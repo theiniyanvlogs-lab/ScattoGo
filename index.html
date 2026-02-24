@@ -1,21 +1,35 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>AI Group Photo Web</title>
+    <meta charset="UTF-8">
+    <title>ScattoGo - AI Group Photo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <video id="video" autoplay></video>
+    <!-- Camera Preview -->
+    <video id="video" autoplay playsinline></video>
 
+    <!-- Hidden Canvas -->
     <canvas id="canvas" style="display:none;"></canvas>
 
+    <!-- Countdown Display -->
+    <div id="countdown" class="countdown"></div>
+
+    <!-- Controls -->
     <div class="controls">
         <button id="captureBtn">
-            Dont miss All your family members - Click Here
+            Dont miss All your family members - Just Click here, to take Group Photos
         </button>
     </div>
 
+    <!-- MediaPipe AI -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+
+    <!-- Your Script -->
     <script src="script.js"></script>
+
 </body>
 </html>
