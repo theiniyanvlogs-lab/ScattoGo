@@ -4,17 +4,12 @@ const captureBtn = document.getElementById("captureBtn");
 const countdown = document.getElementById("countdown");
 const ctx = canvas.getContext("2d");
 
+let cameraStarted = false;
 let firstImageData = null;
+let stream = null;
 let processing = false;
 
-// Start Camera
-navigator.mediaDevices.getUserMedia({ video: true })
-.then(stream => {
-    video.srcObject = stream;
-})
-.catch(() => alert("Camera permission required!"));
-
-// Setup MediaPipe Segmentation
+// Setup AI
 const selfieSegmentation = new SelfieSegmentation({
     locateFile: (file) =>
         `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
@@ -24,7 +19,7 @@ selfieSegmentation.setOptions({
     modelSelection: 1
 });
 
-// Countdown Function
+// Countdown
 function startCountdown(seconds) {
     return new Promise(resolve => {
         countdown.style.display = "block";
@@ -43,11 +38,26 @@ function startCountdown(seconds) {
     });
 }
 
+// Start Camera
+async function startCamera() {
+    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+    cameraStarted = true;
+}
+
+// Button Click Logic
 captureBtn.addEventListener("click", async () => {
 
     if (processing) return;
-    processing = true;
 
+    // 1️⃣ First click → start camera
+    if (!cameraStarted) {
+        await startCamera();
+        captureBtn.innerText = "Take First Photo";
+        return;
+    }
+
+    processing = true;
     await startCountdown(3);
 
     canvas.width = video.videoWidth;
@@ -55,55 +65,50 @@ captureBtn.addEventListener("click", async () => {
 
     ctx.drawImage(video, 0, 0);
 
+    // 2️⃣ Second click → store first photo
     if (!firstImageData) {
-
-        // FIRST PHOTO
         firstImageData = canvas.toDataURL("image/png");
-        alert("First photo taken! Now join the group and click again.");
+        alert("First photo taken. Join group and click again.");
+        captureBtn.innerText = "Take Second Photo";
         processing = false;
-
-    } else {
-
-        // SECOND PHOTO WITH AI SEGMENTATION
-        selfieSegmentation.onResults(results => {
-
-            const firstImage = new Image();
-            firstImage.src = firstImageData;
-
-            firstImage.onload = () => {
-
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                // Draw original first photo
-                ctx.drawImage(firstImage, 0, 0);
-
-                // Draw only detected person from second image
-                ctx.save();
-
-                // Draw segmentation mask
-                ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
-
-                // Keep only person pixels
-                ctx.globalCompositeOperation = "source-in";
-                ctx.drawImage(video, 0, 0);
-
-                ctx.restore();
-
-                // Save final image
-                const finalImage = canvas.toDataURL("image/png");
-
-                const link = document.createElement("a");
-                link.href = finalImage;
-                link.download = "ScattoGo_AI_Group.png";
-                link.click();
-
-                alert("Smart AI group photo saved!");
-
-                firstImageData = null;
-                processing = false;
-            };
-        });
-
-        await selfieSegmentation.send({ image: video });
+        return;
     }
+
+    // 3️⃣ Third click → AI merge
+    await selfieSegmentation.send({ image: video });
+
+    selfieSegmentation.onResults(results => {
+
+        const firstImage = new Image();
+        firstImage.src = firstImageData;
+
+        firstImage.onload = () => {
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw first photo
+            ctx.drawImage(firstImage, 0, 0);
+
+            // Apply mask
+            ctx.save();
+            ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
+            ctx.globalCompositeOperation = "source-in";
+            ctx.drawImage(video, 0, 0);
+            ctx.restore();
+
+            const finalImage = canvas.toDataURL("image/png");
+
+            const link = document.createElement("a");
+            link.href = finalImage;
+            link.download = "ScattoGo_AI_Group.png";
+            link.click();
+
+            alert("Smart AI group photo saved!");
+
+            // Reset everything
+            firstImageData = null;
+            captureBtn.innerText = "Start Again";
+            processing = false;
+        };
+    });
 });
